@@ -5,6 +5,7 @@
   :description      "Metabase Community Edition"
   :url              "https://metabase.com/"
   :min-lein-version "2.5.0"
+  :repositories {"local" "file:///home/ubuntu/.maven"}
 
   :aliases
   {"generate-sample-dataset"           ["with-profile" "+generate-sample-dataset" "run"]
@@ -133,6 +134,7 @@
    [stencil "0.5.0"]                                                  ; Mustache templates for Clojure
    [toucan "1.15.0" :exclusions [org.clojure/java.jdbc honeysql]]     ; Model layer, hydration, and DB utilities
    [weavejester/dependency "0.2.1"]                                   ; Dependency graphs and topological sorting
+   [org.elasticsearch.plugin/x-pack-sql-jdbc "8.0.0"]
    ]
 
   :main ^:skip-aot metabase.core

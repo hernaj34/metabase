@@ -354,6 +354,7 @@
                   details)]
     ;; this loop tries connecting over ssl and non-ssl to establish a connection
     ;; if it succeeds it returns the `details` that worked, otherwise it returns an error
+    (println "Connection details:" details)
     (loop [details details]
       (let [error (test-database-connection engine details)]
         (if (and error

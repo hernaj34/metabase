@@ -156,6 +156,7 @@
   1` query."
   [driver details]
   (let [spec        (details->connection-spec-for-testing-connection driver details)
+        _ (println "Cann connect spec: "spec)
         [first-row] (jdbc/query spec ["SELECT 1"])
         [result]    (vals first-row)]
     (= 1 result)))

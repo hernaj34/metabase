@@ -1,0 +1,24 @@
+info:
+  name: Metabase Elastic Driver
+  version: 1.0.0-SNAPSHOT
+  description: Allows Metabase to connect to Elastic databases.
+driver:
+  name: elastic
+  display-name: Elastic
+  lazy-load: true
+  parent: sql
+  connection-properties:
+    - host
+    - merge:
+        - port
+        - default: 9200
+    - merge:
+        - dbname
+        - name: catalog
+          placeholder: hive        
+    - user
+    - password
+  connection-properties-include-tunnel-config: false
+init:
+  - step: load-namespace
+    namespace: metabase.driver.elastic
