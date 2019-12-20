@@ -1,9 +1,12 @@
 (ns metabase.driver.elastic
   (:require [clj-http.client :as http]
+            [clj-time.core :as time] 
+            [clj-time.format :as time-format]
             [clojure
              [set :as set]
              [string :as str]]
             [clojure.tools.logging :as log]
+            [clojure.data.json :as json]
             [honeysql
              [core :as hsql]
              [helpers :as h]]
@@ -75,6 +78,7 @@
                     (parser value))
            (log/tracef "Parse %s -> %s" (pr-str value) (pr-str <>))))))))
 
+
 (defn- fetch-elastic-results! [details {prev-columns :columns, prev-rows :rows} uri]
   (let [{{:keys [columns data nextUri error]} :body} (http/get uri (assoc (details->request details) :as :json))]
     (when error
@@ -87,7 +91,7 @@
         (do (Thread/sleep 100)        ; Might not be the best way, but the pattern is that we poll Presto at intervals
             (fetch-elastic-results! details results nextUri))))))
 
-(defn- execute-elastic-query!
+(defn- execute-elastic-query_old!
   {:style/indent 1}
   [details query]
   {:pre [(map? details)]}
@@ -114,7 +118,7 @@
                   (if id
                     ;; If we have a query id, we can cancel the query
                     (try
-                      (let [tunneledUri (details->uri details-with-tunnel (str "/_xpack/sql?format=json&pretty" id))
+                      (let [tunneledUri (details->uri details-with-tunnel (str "/_xpack/sql?format=json" id))
                             adjustedUri (create-cancel-url tunneledUri (get details :host) (get details :port) infoUri)]
                         (http/delete adjustedUri (details->request details-with-tunnel)))
                       ;; If we fail to cancel the query, log it but propogate the interrupted exception, instead of
@@ -126,73 +130,105 @@
                     ;; Propagate the error so that any finalizers can still run
                     (throw e)))))))))))
 
+(defmethod sql.qp/field->alias :elastic [_ field]
+  (do (prn "Field " field) nil))
 
+;(defn parse-columns [columns] (vec (map (fn [col] (col :name)) columns)))
+(defn parse-columns [columns] (vec (map (fn [col] {:name (u/qualified-name (col :name)) :type (col :type)})columns)))
+(defn- execute-elastic-query!
+  {:style/indent 1}
+  [details query]
+  {:pre [(map? details)]}
+  (prn query)
+  (ssh/with-ssh-tunnel [details-with-tunnel details]
+    (let [{{:keys [columns rows]} :body}
+          (http/post (details->uri details-with-tunnel "/_xpack/sql?format=json&pretty")
+                     (assoc (details->request details-with-tunnel)
+                            :body (json/write-str {:query query}), :as :json, :content-type :json, :redirect-strategy :lax))]
+      {:columns (parse-columns columns)
+       :rows rows}
+      )
+    )
+  )
 ;;; `:sql` driver implementation
 
 (s/defmethod driver/can-connect? :elastic
   [driver {:keys [catalog] :as details} :- ElasticConnectionDetails]
   (let [{[[v]] :rows} (execute-elastic-query! details
-                        (format "SHOW SCHEMAS FROM %s LIKE 'information_schema'" (sql.u/quote-name driver :database catalog)))]
-    (= v "information_schema")))
+                        "select 1 + 1")]
+    (= v 2)))
 
 (defmethod driver/date-add :elastic
   [_ dt amount unit]
   (hsql/call :date_add (hx/literal unit) amount dt))
 
-(s/defn ^:private database->all-schemas :- #{su/NonBlankString}
+(s/defn database->get-tables
   "Return a set of all schema names in this `database`."
   [driver {{:keys [catalog schema] :as details} :details :as database}]
-  (let [sql            (str "SHOW SCHEMAS FROM " (sql.u/quote-name driver :database catalog))
+  (let [sql            "SHOW TABLES"
         {:keys [rows]} (execute-elastic-query! details sql)]
-    (set (map first rows))))
-
-(defn- describe-schema [driver {{:keys [catalog] :as details} :details} {:keys [schema]}]
-  (let [sql            (str "SHOW TABLES FROM " (sql.u/quote-name driver :schema catalog schema))
-        {:keys [rows]} (execute-elastic-query! details sql)
-        tables         (map first rows)]
-    (set (for [table-name tables]
-           {:name table-name, :schema schema}))))
+    (def tables {:tables (set (map (fn [row] {:name (get row 0) :schema nil}) rows))})
+    (prn "tables" tables)
+    )
+  
+  tables
+  
+  )
+; (defn- describe-schema [driver {{:keys [catalog] :as details} :details} {:keys [schema]}]
+;   (let [sql            (str "SHOW TABLES FROM " (sql.u/quote-name driver :schema catalog schema))
+;         {:keys [rows]} (execute-elastic-query! details sql)
+;         tables         (map first rows)]
+;     (set (for [table-name tables]
+;            {:name table-name, :schema schema}))))
 
 (def ^:private excluded-schemas #{"information_schema"})
 
 (defmethod driver/describe-database :elastic
   [driver database]
-  (let [schemas (remove excluded-schemas (database->all-schemas driver database))]
-    {:tables (reduce set/union (for [schema schemas]
-                                 (describe-schema driver database {:schema schema})))}))
+  (database->get-tables driver database))
 
 (defn- elastic-type->base-type [field-type]
   (condp re-matches field-type
-    #"boolean"     :type/Boolean
-    #"tinyint"     :type/Integer
-    #"smallint"    :type/Integer
-    #"integer"     :type/Integer
-    #"bigint"      :type/BigInteger
-    #"real"        :type/Float
-    #"double"      :type/Float
-    #"decimal.*"   :type/Decimal
-    #"varchar.*"   :type/Text
-    #"char.*"      :type/Text
-    #"varbinary.*" :type/*
-    #"json"        :type/Text       ; TODO - this should probably be Dictionary or something
+    #"text"        :type/Text
     #"date"        :type/Date
-    #"time"        :type/Time
-    #"time.+"      :type/DateTime
-    #"array"       :type/Array
-    #"map"         :type/Dictionary
-    #"row.*"       :type/*          ; TODO - again, but this time we supposedly have a schema
-    #".*"          :type/*))
+    #"boolean"     :type/Boolean
+    #"long"        :type/BigInteger
+    #"LONG"        :type/BigInteger
+    #"float"       :type/Float
+    #"BOOLEAN"     :type/Boolean
+    #"TYNINT"      :type/Integer
+    #"SMALLINT"    :type/Integer
+    #"INTEGER"     :type/Integer
+    #"BIGINT"      :type/BigInteger
+    #"REAL"        :type/Float
+    #"DUBLE"       :type/Float
+    #"DECIMAL.*"   :type/Decimal
+    #"VARCHAR.*"   :type/Text
+    #"CHAR.*"      :type/Text
+    #"VARBINARY.*" :type/*
+    #"JSON"        :type/Text       ; TODO - this should probably be Dictionary or something
+    #"DATE"        :type/Date
+    #"TIME"        :type/Time
+    #"TIME.+"      :type/DateTime
+    #"ARRAY"       :type/Array
+    #"MAP"         :type/Dictionary
+    #"ROW.*"       :type/*          ; TODO - again, but this time we supposedly have a schema
+    #".*"          :type/*
+    ))
 
 (defmethod driver/describe-table :elastic
   [driver {{:keys [catalog] :as details} :details} {schema :schema, table-name :name}]
-  (let [sql            (str "DESCRIBE " (sql.u/quote-name driver :table catalog schema table-name))
+  (let [sql            (str "DESCRIBE \"" table-name "\"")
         {:keys [rows]} (execute-elastic-query! details sql)]
-    {:schema schema
-     :name   table-name
-     :fields (set (for [[name type] rows]
-                    {:name          name
-                     :database-type type
-                     :base-type     (elastic-type->base-type type)}))}))
+    (def descr {:schema nil
+                :name   table-name
+                :fields (set (for [[name type] rows]
+                               {:name          name
+                                :database-type type
+                                :base-type     (elastic-type->base-type type)}))})
+    )
+  (prn descr)
+  descr)
 
 (defmethod sql.qp/->honeysql [:elastic String]
   [_ s]
@@ -237,6 +273,7 @@
         details                (merge (:details (qp.store/database))
                                       settings)
         {:keys [columns rows]} (execute-elastic-query! details sql)
+        test (prn columns)
         columns                (for [[col name] (map vector columns (map :name columns))]
                                  {:name name, :base_type (elastic-type->base-type (:type col))})]
     (merge
@@ -318,8 +355,17 @@
 (defmethod driver.common/current-db-time-date-formatters :elastic [_]
   (driver.common/create-db-time-formatters "yyyy-MM-dd'T'HH:mm:ss.SSSZ"))
 
+(defn- get-current-iso-8601-date
+  "Returns current ISO 8601 compliant date."
+  []
+  (let [current-date-time (time/to-time-zone (time/now) (time/default-time-zone))]
+    (time-format/unparse
+     (time-format/with-zone (time-format/formatter "yyyy-MM-dd'T'HH:mm:ss.SSSZ")
+       (.getZone current-date-time))
+     current-date-time)))
+
 (defmethod driver.common/current-db-time-native-query :elastic [_]
-  "select to_iso8601(current_timestamp)")
+   (str "select '" (get-current-iso-8601-date) "'"))
 
 (defmethod driver/current-db-time :elastic [& args]
   (apply driver.common/current-db-time args))

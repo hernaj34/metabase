@@ -1,4 +1,4 @@
-(ns metabase.driver.presto-test
+(ns metabase.driver.elastic-test
   (:require [clj-http.client :as http]
             [clojure.test :refer :all]
             [expectations :refer [expect]]
@@ -9,7 +9,7 @@
              [query-processor-test :as qp.test]]
             [metabase.db.metadata-queries :as metadata-queries]
             [metabase.driver
-             [presto :as presto]
+             [elastic :as elastic]
              [util :as driver.u]]
             [metabase.driver.sql.query-processor :as sql.qp]
             [metabase.models
@@ -27,54 +27,54 @@
 
 (deftest details->uri-test
   (is (= "http://localhost:8080/"
-         (#'presto/details->uri {:host "localhost", :port 8080, :catalog "Sears", :ssl false} "/")))
+         (#'elastic/details->uri {:host "localhost", :port 8080, :catalog "Sears", :ssl false} "/")))
   (is (= "https://localhost:8443/"
-         (#'presto/details->uri {:host "localhost", :port 8443, :catalog "Sears", :ssl true} "/")))
+         (#'elastic/details->uri {:host "localhost", :port 8443, :catalog "Sears", :ssl true} "/")))
   (is (= "http://localhost:8080/v1/statement"
-         (#'presto/details->uri {:host "localhost", :port 8080, :catalog "Sears", :ssl false} "/v1/statement"))))
+         (#'elastic/details->uri {:host "localhost", :port 8080, :catalog "Sears", :ssl false} "/v1/statement"))))
 
 (deftest details->request-test
-  (driver/with-driver :presto
+  (driver/with-driver :elastic
     (is (= {:headers {"X-Presto-Source" "metabase"
                       "X-Presto-User"   "user"}}
            (qp.timezone/with-report-timezone-id nil
-             (#'presto/details->request {:user "user"}))))
+             (#'elastic/details->request {:user "user"}))))
     (is (= {:headers    {"X-Presto-Source" "metabase"
                          "X-Presto-User"   "user"}
             :basic-auth ["user" "test"]}
            (qp.timezone/with-report-timezone-id nil
-             (#'presto/details->request {:user "user", :password "test"}))))
+             (#'elastic/details->request {:user "user", :password "test"}))))
     (is (= {:headers {"X-Presto-Source"    "metabase"
                       "X-Presto-User"      "user"
                       "X-Presto-Catalog"   "test_data"
                       "X-Presto-Time-Zone" "America/Toronto"}}
            (qp.timezone/with-report-timezone-id "America/Toronto"
-             (#'presto/details->request {:user "user", :catalog "test_data"}))))))
+             (#'elastic/details->request {:user "user", :catalog "test_data"}))))))
 
 (deftest parse-results-test
-  (driver/with-driver :presto
+  (driver/with-driver :elastic
     (qp.test-util/with-everything-store
       (is (= [["2017-04-03"
                (t/zoned-date-time "2017-04-03T10:19:17.417-04:00[America/Toronto]")
                (t/zoned-date-time "2017-04-03T10:19:17.417Z[UTC]")
                3.1416M
                "test"]]
-             (#'presto/parse-presto-results
+             (#'elastic/parse-elastic-results
               [{:type "date"} {:type "timestamp with time zone"} {:type "timestamp"} {:type "decimal(10,4)"} {:type "varchar(255)"}]
               [["2017-04-03", "2017-04-03 10:19:17.417 America/Toronto", "2017-04-03 10:19:17.417", "3.1416", "test"]])))
       (is (=
            [[0, false, "", nil]]
-           (#'presto/parse-presto-results
+           (#'elastic/parse-elastic-results
             [{:type "integer"} {:type "boolean"} {:type "varchar(255)"} {:type "date"}]
             [[0, false, "", nil]]))))))
 
 (deftest describe-database-test
-  (datasets/test-driver :presto
+  (datasets/test-driver :elastic
     (is (= {:tables #{{:name "test_data_categories" :schema "default"}
                       {:name "test_data_venues" :schema "default"}
                       {:name "test_data_checkins" :schema "default"}
                       {:name "test_data_users" :schema "default"}}}
-           (-> (driver/describe-database :presto (data/db))
+           (-> (driver/describe-database :elastic (data/db))
                (update :tables (comp set (partial filter (comp #{"test_data_categories"
                                                                  "test_data_venues"
                                                                  "test_data_checkins"
@@ -82,7 +82,7 @@
                                                                :name)))))))))
 
 (deftest describe-table-test
-  (datasets/test-driver :presto
+  (datasets/test-driver :elastic
     (is (= {:name   "test_data_venues"
             :schema "default"
             :fields #{{:name          "name",
@@ -103,10 +103,10 @@
                       {:name          "id"
                        :database-type "integer"
                        :base-type     :type/Integer}}}
-           (driver/describe-table :presto (data/db) (db/select-one 'Table :id (data/id :venues)))))))
+           (driver/describe-table :elastic (data/db) (db/select-one 'Table :id (data/id :venues)))))))
 
 ;;; TABLE-ROWS-SAMPLE
-(datasets/expect-with-driver :presto
+(datasets/expect-with-driver :elastic
   [["Red Medicine"]
    ["Stout Burgers & Beers"]
    ["The Apple Pan"]
@@ -126,7 +126,7 @@
              :order-by [[:default.categories.id :asc]]}]
    :where  [:> :__rownum__ 5]
    :limit  5}
-  (sql.qp/apply-top-level-clause :presto :page
+  (sql.qp/apply-top-level-clause :elastic :page
     {:select   [[:default.categories.name "name"] [:default.categories.id "id"]]
      :from     [:default.categories]
      :order-by [[:default.categories.id :asc]]}
@@ -147,18 +147,18 @@
                    :tunnel-port    22
                    :tunnel-user    "bogus"}]
       (tu.log/suppress-output
-        (driver.u/can-connect-with-details? :presto details :throw-exceptions)))
+        (driver.u/can-connect-with-details? :elastic details :throw-exceptions)))
     (catch Exception e
       (.getMessage e))))
 
-(datasets/expect-with-driver :presto
+(datasets/expect-with-driver :elastic
   "UTC"
   (tu/db-timezone-id))
 
 ;; Query cancellation test, needs careful coordination between the query thread, cancellation thread to ensure
 ;; everything works correctly together
 (deftest query-cancelation-test
-  (datasets/test-driver :presto
+  (datasets/test-driver :elastic
     (let [called-cancel-promise (atom nil)]
       (with-redefs [http/delete (fn [& _]
                                   (deliver @called-cancel-promise true))]
@@ -167,11 +167,11 @@
                 (fn [query-thunk called-query? called-cancel? pause-query]
                   (reset! called-cancel-promise called-cancel?)
                   (future
-                    (with-redefs [presto/fetch-presto-results! (fn [_ _ _] (deliver called-query? true) @pause-query)]
+                    (with-redefs [elastic/fetch-elastic-results! (fn [_ _ _] (deliver called-query? true) @pause-query)]
                       (query-thunk)))))))))))
 
 (deftest template-tag-timezone-test
-  (datasets/test-driver :presto
+  (datasets/test-driver :elastic
     (testing "Make sure date params work correctly when report timezones are set (#10487)"
       (tu/with-temporary-setting-values [report-timezone "Asia/Hong_Kong"]
         (is (= [["2014-08-02T00:00:00+08:00" "2014-08-02"]]
