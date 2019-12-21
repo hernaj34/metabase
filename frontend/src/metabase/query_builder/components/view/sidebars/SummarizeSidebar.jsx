@@ -90,6 +90,7 @@ export default class SummarizeSidebar extends React.Component {
 }
 
 const SummarizeAggregation = ({ className, aggregation, index, query }) => {
+  console.log(lassName, aggregation, index, query)
   return (
     <div className={cx(className, "flex align-stretch")}>
       <PopoverWithTrigger

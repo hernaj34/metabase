@@ -253,6 +253,7 @@ if (NODE_ENV !== "production") {
       config.resolve.alias[name] = unminified;
     }
   }
+  
 
   // enable "cheap" source maps in hot or watch mode since re-build speed overhead is < 1 second
   config.devtool = "cheap-module-source-map";

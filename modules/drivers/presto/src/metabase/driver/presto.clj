@@ -77,7 +77,7 @@
        (for [[value parser] (partition 2 (interleave row parsers))]
          (u/prog1 (when (some? value)
                     (parser value))
-           (log/tracef "Parse %s -> %s" (pr-str value) (pr-str <>))))))))
+                  (log/tracef "Parse %s -> %s" (pr-str value) (pr-str <>))))))))
 
 (defn- fetch-presto-results! [details {prev-columns :columns, prev-rows :rows} uri]
   (let [{{:keys [columns data nextUri error]} :body} (http/get uri (assoc (details->request details) :as :json))]
@@ -99,7 +99,7 @@
     (let [{{:keys [columns data nextUri error id infoUri]} :body}
           (http/post (details->uri details-with-tunnel "/v1/statement")
                      (assoc (details->request details-with-tunnel)
-                             :body query, :as :json, :redirect-strategy :lax))]
+                            :body query, :as :json, :redirect-strategy :lax))]
       (when error
         (throw (ex-info (or (:message error) "Error preparing query.") error)))
       (let [rows    (parse-presto-results (or columns []) (or data []))
@@ -136,7 +136,7 @@
 (s/defmethod driver/can-connect? :presto
   [driver {:keys [catalog] :as details} :- PrestoConnectionDetails]
   (let [{[[v]] :rows} (execute-presto-query! details
-                        (format "SHOW SCHEMAS FROM %s LIKE 'information_schema'" (sql.u/quote-name driver :database catalog)))]
+                                             (format "SHOW SCHEMAS FROM %s LIKE 'information_schema'" (sql.u/quote-name driver :database catalog)))]
     (= v "information_schema")))
 
 (defmethod driver/date-add :presto
@@ -301,9 +301,9 @@
 (defmethod sql.qp/date [:presto :week]
   [_ _ expr]
   (hsql/call :date_add
-    (hx/literal :day) -1 (hsql/call :date_trunc
-                           (hx/literal :week) (hsql/call :date_add
-                                                (hx/literal :day) 1 expr))))
+             (hx/literal :day) -1 (hsql/call :date_trunc
+                                             (hx/literal :week) (hsql/call :date_add
+                                                                           (hx/literal :day) 1 expr))))
 
 ;; Offset by one day forward to "fake" a Sunday starting week
 (defmethod sql.qp/date [:presto :week-of-year]
@@ -323,7 +323,7 @@
   (driver.common/create-db-time-formatters "yyyy-MM-dd'T'HH:mm:ss.SSSZ"))
 
 (defmethod driver.common/current-db-time-native-query :presto [_]
-  "select to_iso8601(current_timestamp)")
+  "select current_timestamp")
 
 (defmethod driver/current-db-time :presto [& args]
   (apply driver.common/current-db-time args))

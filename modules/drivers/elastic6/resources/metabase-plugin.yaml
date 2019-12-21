@@ -1,0 +1,24 @@
+info:
+  name: Metabase Elastic 6.4 Driver
+  version: 1.0.0-SNAPSHOT
+  description: Allows Metabase to connect to Elastic 6 databases.
+driver:
+  name: elastic6
+  display-name: Elastic 6
+  lazy-load: true
+  parent: sql
+  connection-properties:
+    - host
+    - merge:
+        - port
+        - default: 9200
+    - merge:
+        - dbname
+        - name: catalog
+          placeholder: hive
+    - user
+    - password
+  connection-properties-include-tunnel-config: false
+init:
+  - step: load-namespace
+    namespace: metabase.driver.elastic6
