@@ -1,7 +1,5 @@
 (ns metabase.driver.elastic
   (:require [clj-http.client :as http]
-            [clj-time.core :as time]
-            [clj-time.format :as time-format]
             [clojure
              [set :as set]
              [string :as str]]

@@ -1,0 +1,57 @@
+Possibly confusing dependencies found:
+[metabase-core "1.0.0-SNAPSHOT"] -> [org.clojure/tools.logging "0.4.1"]
+ overrides
+[metabase-core "1.0.0-SNAPSHOT"] -> [metabase/mbql "1.4.3"] -> [metabase/schema-util "1.0.2"] -> [metabase/common "1.0.4"] -> [org.clojure/tools.logging "0.5.0-alpha.1"]
+ and
+[metabase-core "1.0.0-SNAPSHOT"] -> [metabase/mbql "1.4.3"] -> [metabase/common "1.0.6"] -> [org.clojure/tools.logging "0.5.0-alpha.1"]
+ and
+[metabase-core "1.0.0-SNAPSHOT"] -> [toucan "1.15.0" :exclusions [org.clojure/java.jdbc honeysql]] -> [org.clojure/tools.logging "0.5.0"]
+
+Consider using these exclusions:
+[metabase-core "1.0.0-SNAPSHOT" :exclusions [org.clojure/tools.logging]]
+
+[metabase-core "1.0.0-SNAPSHOT"] -> [org.clojure/tools.namespace "0.2.11"]
+ overrides
+[metabase-core "1.0.0-SNAPSHOT"] -> [toucan "1.15.0" :exclusions [org.clojure/java.jdbc honeysql]] -> [org.clojure/tools.namespace "0.3.1"]
+
+Consider using these exclusions:
+[metabase-core "1.0.0-SNAPSHOT" :exclusions [org.clojure/tools.namespace]]
+
+[metabase-core "1.0.0-SNAPSHOT"] -> [clojurewerkz/quartzite "2.1.0" :exclusions [c3p0]] -> [clj-time "0.14.0"]
+ overrides
+[metabase-core "1.0.0-SNAPSHOT"] -> [ring/ring-jetty-adapter "1.7.1"] -> [ring/ring-servlet "1.7.1"] -> [ring/ring-core "1.7.1"] -> [clj-time "0.14.3"]
+ and
+[metabase-core "1.0.0-SNAPSHOT"] -> [ring/ring-jetty-adapter "1.7.1"] -> [ring/ring-core "1.7.1"] -> [clj-time "0.14.3"]
+ and
+[metabase-core "1.0.0-SNAPSHOT"] -> [ring/ring-core "1.7.1"] -> [clj-time "0.14.3"]
+
+Consider using these exclusions:
+[metabase-core "1.0.0-SNAPSHOT" :exclusions [clj-time]]
+
+[metabase-core "1.0.0-SNAPSHOT"] -> [com.taoensso/nippy "2.14.0"] -> [org.clojure/tools.reader "1.1.1"]
+ overrides
+[metabase-core "1.0.0-SNAPSHOT"] -> [toucan "1.15.0" :exclusions [org.clojure/java.jdbc honeysql]] -> [org.clojure/tools.namespace "0.3.1"] -> [org.clojure/tools.reader "1.3.2"]
+
+Consider using these exclusions:
+[metabase-core "1.0.0-SNAPSHOT" :exclusions [org.clojure/tools.reader]]
+
+[metabase-core "1.0.0-SNAPSHOT"] -> [potemkin "0.4.5"] -> [riddley "0.1.12"]
+ overrides
+[metabase-core "1.0.0-SNAPSHOT"] -> [aleph "0.4.6" :exclusions [org.clojure/tools.logging]] -> [byte-streams "0.2.4"] -> [manifold "0.1.8"] -> [riddley "0.1.14"]
+ and
+[metabase-core "1.0.0-SNAPSHOT"] -> [aleph "0.4.6" :exclusions [org.clojure/tools.logging]] -> [manifold "0.1.8"] -> [riddley "0.1.14"]
+
+Consider using these exclusions:
+[metabase-core "1.0.0-SNAPSHOT" :exclusions [riddley]]
+
+[metabase-core "1.0.0-SNAPSHOT"] -> [clojurewerkz/quartzite "2.1.0" :exclusions [c3p0]] -> [clj-time "0.14.0"] -> [joda-time "2.9.7"]
+ overrides
+[metabase-core "1.0.0-SNAPSHOT"] -> [ring/ring-jetty-adapter "1.7.1"] -> [ring/ring-servlet "1.7.1"] -> [ring/ring-core "1.7.1"] -> [clj-time "0.14.3"] -> [joda-time "2.9.9"]
+ and
+[metabase-core "1.0.0-SNAPSHOT"] -> [ring/ring-jetty-adapter "1.7.1"] -> [ring/ring-core "1.7.1"] -> [clj-time "0.14.3"] -> [joda-time "2.9.9"]
+ and
+[metabase-core "1.0.0-SNAPSHOT"] -> [ring/ring-core "1.7.1"] -> [clj-time "0.14.3"] -> [joda-time "2.9.9"]
+
+Consider using these exclusions:
+[metabase-core "1.0.0-SNAPSHOT" :exclusions [joda-time]]
+

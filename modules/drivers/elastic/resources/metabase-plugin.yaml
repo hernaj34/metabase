@@ -15,7 +15,7 @@ driver:
     - merge:
         - dbname
         - name: catalog
-          placeholder: hive        
+          placeholder: hive
     - user
     - password
   connection-properties-include-tunnel-config: false
